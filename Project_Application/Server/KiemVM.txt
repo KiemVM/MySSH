@@ -1,0 +1,148 @@
+﻿I. Bitmap indexs
+Trong B tree, có một mối quan hệ 1-1 giữa index và hàng, mỗi index trỏ tới một hàng. Bitmap index 
+cũng có trật tự giống như B tree nhưng với bitmap index, mỗi index đơn lẻ sẽ sử dụng một điểm bimap để
+trỏ tới đồng thời nhiều hàng hơn. Nếu một bitmap index bao gồm nhiều hơn một cột, sẽ có một bitmap cho
+mỗi tổ hợp. Mỗi bitmap header lưu trữ những ROWID bắt đầu và kết thúc. Nó là điều có thể được bởi vì hệ 
+thống biết số tượng tối đa số hàng có thể lưu trữ trong một block hệ thống. Mỗi vị trí trong một bitmap
+vạch ra một hàng tiềm tàng trong bảng nếu hàng trừ khi hàng đó không tồn tại. Nội dung của vị trí trong bitmap 
+cho một giá trị đặc biệt cho biết giá trị của của hàng trong các bitmap cột. Giá trị được lưu trữ là 1 nếu giá trị của hàng 
+hợp với điều kiện bitmap, trong trường hợp khác nó là 0 Bitmap indexs được sử dụng rộng trong môi trường kho dữ liệu.
+Đó là môi trường điển hình có phạm vi dữ liệu lớn nhiều loại câu truy vấn nhưng không sử dụng đồng thời nhiều câu truy vấn bởi vì khi ta 
+đang khóa một bitmap, ta cũng đang khóa nhiều hàng trong bảng cùng lúc. Với những ứng dụng như vậy, bitmap indexs cung cấp 
+các câu trả lời bị chậm ở một số lớn các lớp câu truy vấn, giảm đi các yêu cầu lưu trữ khi so sánh với các kỹ thuật index khác, 
+đặc biệt là về hiệu năng trên một nền tảng phần cứng với số lượng cpu nhỏ, bộ nhớ nhỏ, và hiệu quả trong việc duy trì việc thực hiện đồng thời truy vấn
+và load dữ liệu.
+Ghi chú: Không giống hầu hết các loại index khác, bitmap indexs bao gồm cả các hàng có giá trị NULL. Việc đánh chỉ mục cả các giá trị NULL có thể hữu ích trong một số 
+loại truy vấn SQL, ví dụ câu truy vấn với sự tích hợp hàm COUNT. Vị ngữ IS NOT NULL cũng có thể có giá trị từ bitmap indexs.
+Mặc dù bitmaps đã bị nén bên trong, nó cũng bị chia ra nhiều lá nếu số hàng tăng lên.
+=======================================================
+Bitmap Index Access: Examples
+ Ví dụ trong slide minh họa 2 cách tác động có thể cho bitmap indexs - BITMAP INDEX SINGLE VALUE
+ và  BITMAP INDEX RANGE SCAN - phụ thuộc và vị ngữ bạn dùng trong câu tru vấn.
+ câu truy vấn đầu tiên quét bitmap cho COUNTRY là FR với các vị trí có giá trị 1. Các vị trí có giá trị 1 được 
+ convert sang ROWID và có hàng tương ứng của chúng trả về cho câu truy vấn.
+ Trong một số trường hợp (ví dụ truy vấn đếm số hàng với COUNTRY FR), câu truy vấn có thể đơn giản sử dụng bitmap của nó và đếm số giá trị 1. (không cần tác động tới các hàng)
+ đây là ví dụ minh họa cho điều vừa đề cập.
+ 
+ 
+ ================================================================
+ Combining Bitmap indexs: Examples
+ kết  hợp bimap indexs: ví dụ
+ Bitmap indexs có hiệu quả tốt nhất với các truy vấn bao gồm nhiều điều kiện trong mệnh đề WHERE.
+Các hàng mà làm thỏa mãn một số nưng không phải tất cả, các điều kiện mà đã lọc ra trước khi tác động tới bảng. Nó cải thiện thời gian phản hồi.
+Giống như một bimap từ các bimap index có thể được được phối hợp nhanh chóng, nó thường là cách tốt nhất để sử dụng bitmap index của cột đơn.
+Bitmap index hiệu quả khi dử dụng:
+IN (value list)
+Vị ngữ được tổ hợp với And hoặc Or
+
+====================================================
+Combining bitmap index access paths
+Bitmap index có thể được sử dụng hiệu quả khi câu truy vấn kết hợp một số giá trị có thể được cho một cột
+hoặc khi 2 cột đã được đánh index không trùng nhau được dùng.
+Trong một số trường hợp, mệnh đề WHERE có thể tham chiếu một vài cột đã đánh index không trùng nhau giống như ví dụ trong slide.
+Nếu cải 2 cột COUNTRY và GENDER ddueeuf có bitmap index, các toán tử trên bit trong 2 bitmap nhanh chóng xác định được hàng mà chúng mong muốn. 
+Khi mệnh đề WHERE trở nên phức tạp và rắc rối hơn, có nhiều giá trị mà bạn có thể tìm thấy từ bimap index.
+======================================================
+Bitmap Operations
+Silde trên tổng hợp taaos cảo các toán tử bitmap có thể. 
+Các toán tử dưới đây đã không được giảng giải nhiều:
++ BITMAP CONVERSION FROM ROWID: B-tree index được convert bởi bộ tối ưu sang bimap(chi phí thấp hơn các phương thức khác) 
+để tận dụng hiệu quả của bitmap khi so sánh với các toán tử phù hợp khác. Sau khi bitmap được thực hiện xong, kết quả của nó được convert lại ROWID (BITMAP CONVERSION TO
+ ROWID) để thực hiện việc tra cứu dữ liệu.
++ BITMAP MERGE: kết hợp một số kết quả bitmap từ range scan vào một bitmap.
++ BITMAP MINUS: là một toán tử kép, nó lấy toán tử bimap thứ 2 rồi phủ định nó (1 thành 0 và 0 thành 1).Toán tử bimap minus 
+sau đó thực hiện giống như toán tử BITMAP AND sử dụng bitmap phủ định vừa tạo ra.
++ BITMAP KEY ITERATION: đem mỗi hàng từ table row source và tìm bimap tương ứng từ bimap index. Tập hợp các bimap nàu sao đó được 
+trộn vào trong toán tử BITMAP MERGE.
+=================================================================
+Bitmap Join Index
+Thêm một điều về bitmap index trên một bảng đơn, bạn có thể tạo một bitmap join index. Một bitmap join index là một bimap index của sự kết nối của 2 hay nhiều hơn các bảng. Bitmap join index là một
+cách hiệu quả hơn trong việc giản kích thước của data mà phải được nối bởi hiệu năng của việc kết nối nâng cao.
+Ghi chú: Bitmap join index có nhiều hiều quả hơn trong lưu trữ so với việc kết nối củ thể. 
+Cùng xem Case study: Start Transformation (chương 9)
+Đây, bạn tạo một bitmap join index mới với tên: cust_sales_bji trong bảng SALES.
+Khóa của index này là cột CUST_CITY của bảng CUSTOMERS. ví dụ này cho rằng khóa chính của CUSTOMERS được lưu trữ trong bimap index tồ tại thực sự trong dữ liệu của bảng.
+cột CUST_ID là khóa chính của bảng CUSTOMERS nhưng cũng là khóa ngoài của bảng SALES, cho dù nó không đòi hỏi.
+Mệnh đề From và WHERE trong CREATE cho phép hệ thống kết nối giữa 2 bảng. Chúng tượng chưng cho điều kiện nối giữa 2 bảng.
+Phần giữa của bức ảnh cho bạn thấy sự thể hiện về lý thuyết của sự kết nối bitmap index. Mỗi mục hoặc khóa trong index tiêu biểu cho một thành phố có thể tìm thấy trong bảng CUSTOMERS.
+Một bimap sau đó liên kết tới một key đặc biệt. Mỗi bitmap tương ứng với một hàng trong bảng SALES. Trong khóa đầy tiên trong Slide, 
+bạn thấy hàng đầu tiên trong bảng SALES tương ứng tới một sản phẩm tới Khách hàng Rognes, trong khi bit thứ 2 
+không là một sản phẩm tới Khách hàng Rognes. Bằng cách lưu trữ kết quả của kết nối, kết nối có thể bị hủy bỏ hoàn toàn toàn trong 
+câu lệnh SQL sử dụng bimap join index.
+=============================================================
+Composite indexs
+index kết hợp cũng được qui vào giống như index móc nối bởi vì nó móc nối giá trị cột này với cộ khác để tạo thành giá trị khóa index.
+Trong slide minh họa, cột MAKE và MODEL được móc nối với nhau để tạo index. Nó là không cần thiết khi mà các cột trong index sát nhau.
+bạn có thể bảo gồm tới 32 cột trong index, trừ khi nó là index kết hợp. nó giới hạn là 30 cột.
+index kết hợp có thể cung cấp những tinh năng nâng cao hơn index một cột.
++ cải thiện tính chọn lọc: Đôi khi hai hay nhiều cột hoặc biểu thức, mỗi cái với tính chọn lọc nghèo nàn có thể được tổ hợp thành index 
+kêt hợp với tính chọn lọc cao hơn.
++ Giảm quá trinh bào ra: nếu tất cả các cột được chọn bởi truy vấn đều nằm trong index kết hợp, hệ thống có thể trả về giá trị đó từ index 
+mà không cần tác động tới bảng.
+Index kết hợp có tác dụng chính khi bạn thường xuyên có mệnh đề WHERE tham chiếu tới tất cả hay một số các cột trong index.Nếu một số khóa được sử dụng trong mệnh đề WHERE thowngr xuyên, và bạn quyết định tạo index kết hợp, chắc 
+răng việc tạo index kết hợp này chứa các khóa thường được chọn và các câu truy vấn này chỉ cần sử dụng index là đủ.
+Ghi chú: Bộ tối ưu có thể chọn các index móc vào nhau này  một cách hợp lý trừ khi truy vấn của bạn không tham chiều tới một phần của index.
+Nó có thể dừng scan index và scan nhanh toàn bộ có thể được thi hành.
+============================================================================
+Invisible Index: Overview
+Một index vô hình là một index bị lờ đi bởi trình tối ưu trừ khi bạn thiết lập tường minh  OPTIMIZED_USE_INVISIBLE_INDEXES
+khopwf tạo tham số TRUE tạo phiên làm việc hoặc mức hệ thống. Giá trị mặc định là FALSE.
+Tạo một index vô hình là thay đổi để làm nó không phù hợp hoặc xóa nó. Sử dụng index vộ hình bạn có thể thực hiện các hành động:
++ kiểm tra dự dời đi của index trước khi xóa nó.
++ Sử dụng cấu trúc index tạm thời cho một toán tử chắc chắc hay module của ứng dụng mà không làm ảnh hưởng tới toàn bộ ứng dụng.
+Không giống như index không dùng được, index vô hình được bảo vệ trong câu lện DML.
+============================================================================
+Invisible Indexes: Examples
+Khi index là vô hình, bộ tối ưu lựa chọn kế hoạch không dùng index. Nếu không thấy rõ nó ảnh hưởng tới hiệu năng, bạn có thể xóa index. Bạn cũng có thể tạo index và khởi tạo là vô hình, thực hiện test,
+và sau đó quyết định có tạo index hay không.
+Bạn có thể truy vấn cột VISIBILITY  của từ điển dữ liệu *_INDEXES để xác định index là VISIBLE hay INVISIBLE
+Ghi chú: với tát cả các câu đưa ra trong slide, nó coi như OPTIMIZED_USE_INVISIBLE_INDEXES được thiết lập là FALSE.
+===============================================================================
+Guidelines for Managing Indexes
+Các nguyên tắc quản trị Indexes:
++ tạo index sau khi chèn dữ liệu vào bảng: Dữ liệu thường xuyên được chèn hay tải vào trong bảng. Sẽ là hiệu quả hơn khi tạo index cho bảng sau khi chèn hay load dữ liệu.
++ index the correct tables and colums: Sử dụng các hướng dẫn sau để xác định qhi tạo index:
+	- Tạo index nếu bạn thường xuyên muốn nhận ít hợp 15% số hàng trong một bảng lớn.
+	- Để cải thiện hiệu năng kho nối nhiều bảng, index cột dùng để nối.
+	- Bảng nhỏ không cần dùng index.
++ colums suitable for indexing: một số cột là ứng cử viên mạnh mẽ để đánh index:
+	- Giá trị tương đối duy nhất trong cột.
+	- có miền giá trị rộng (tốt cho regular index)
+	- có miền giá trịnh nhỏ (tốt cho bitmap index)
+	- Cột có nhiều giá trị NULL, nhưng truy vấn thường chọn các hàng có giá trị.
++ colums not suitable for indexing:
+	- có nhiều giá trị NULL và bạn không tìm các giá trị không null.
+	- cột LONG và LONG RAW không thể đánh index.
+	- Cột ảo: bạn có thể tạo index duy nhất hay không duy nhật cho cột ảo.
++ Order index colums for performance: Thứ tự của cột trong câu lệnh CREATE INDEX có thể ảnh hưởng tới hiệu năng của câu truy vấn. Thông thường cột sử dụng nhiều nhất là cột đánh index đầu tiên.
++ Limit the number of indexes for each table: một bảng có thể có nhiều index. Tuy nhiên, có nhiều index thì sẽ có nhiều chi phí xử lý khi mà bảng có sự thay đổi.
+Vì vậy cần có sự cân bằng giữa tốc độ phản hồi dữ liệu và tốc độ cập nhật lại bảng.
+Xóa index là điều không được khuyến khích.
++ Specify the tablespace for each index: Nếu bạn sử dụng cùng một không gian cho bảng và index của nó, nó co thể thuận lợi cho việc duy trì cơ sở dữ liệu, ví dụ như sao lưu cơ sở dữ liệu.
++ Consider parallelizing index creation: bạn có thể thực hiện song song việc tạo index với tạo bảng. Điều đó sẽ tăng tốc độ tạo index. Tuy nhiên, mộn index được tạo với giá trị khởi tạo là %M và nếu có 12 cột thì sẽ là 60MB dùng chỉ dùng để lưu trữ index trong quá trình khởi tạo.
++ Consider creating indexs with  NOLOGGING: bạn có thể tạo một index và sinh ra một đoạn Log với việc chỉ rõ NOLOGGING trong câu lện CREATE INDEX.
+Bởi vì index tạo ra sử dụng NOLOGGING sẽ không được lưu trữ. Nó sẽ được tạo sau khi bạn tạo xong bảng. NOLOGGING là giá trị mặc định trong cơ sở dữ liệu NOARCHIVELOG.
+Consider costs and benefits of coalescing or rebuilding indexes: Kích thước hay sự phát triển không phù hợp các index có thể làm chúng bị phân mảnh. Bạn có thể phải quan tâm tới chí để xóa
+và tạo index có hay không có ràng buộc UNIQUE hoặc PRIMARY KEY. 
+Nếu bạn tạo liên kết với ràng buộc UNIQUE hay PRIMARY KEY đã quá lớn, bạn sẽ phải dành thời gian để kích hoạt các ràng buộc này hơn là xóa vào tạo lại một index lớn.
+Bạn phải lựa chọn rõ ràng khi mà bạn muốn xóa hay giữ  hay vô hiệu hóa ràng buộc UNIQUE hay PRIMARY KEY.
+===================================================
+Investigating Index Usage: Nghiên cứu cách sử dụng index.
+Bạn có thể thường xuyên thực thi câu lệnh SQL và mong rằng các index sẽ được sử dụng, và nó không được dùng. Điều đó có thể do bộ tối ưu không biết một số thông tin hoặc nó không nên sử dùng index.
+Functions : Hàm
+Nếu bạn áp dụng một hàm vào cột đã được đánh index trong mệnh đề WHERE, index sẽ không được sử dụng. Index dựa trên cơ sở cột không được áp dụng cho hàm. Ví dụ truy vấn sau:
+SELECT * FROM employees WHERE 1.10*salary > 10000
+Nếu bạn muốn dùng index trong trường hợp này, bạn phải tạo một index cho hàm này.
+Data type mismatch: Kiểu dữ liệu không tương ứng.
+có nhiều sự không tương xứng với kiểu dữ liệu được định nghĩa của cột và dữ liệu khi truy vấn. Khi đó index sẽ không được sử dụng.
+Có một sự chuyển đổi ngầm kiểu dữ liệu dẽ được thực hiện và khi đó giống như ta đã dùng hàm.
+Ví dụ: cột SSN có kiểu dữ liệu là VARCHAR2, ta có truy vấn:
+SELECT * FROM person WHERE SSN = 123456789.
+
+Old Statistics: Thống kê cũng
+Thống kê cũ là trường hợp bộ tối ưu quyết định sử dụng index, tuy nhiên index này đã lỗi thời so với CSDL hiện tại do đó nó sẽ ảnh hưởng tới quyết định của bộ tối ưu khi sử dụng index.
+NULL colums:
+Nếu một cột có thể có giá trị NULL, nó có thể ảnh hưởng tới index trên hàng đó.
+Slower index
+Thỉnh thoảng, việc sử dụng index lại không có hiệu quả.
+
